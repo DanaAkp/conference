@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div>{{ form.username.label() }}
+
+{# выводим само поле #}
+{{ form.username() }}
+</div>
+<div>
+    {{ form.password.label() }}
+{{ form.password() }}
+</div>
+<div>
+{{ form.submit() }}
+</div>
+
+{% endblock %}
