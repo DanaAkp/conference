@@ -1,12 +1,17 @@
+from flask import request
+
 from flask import Flask, render_template, url_for, redirect, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_admin.contrib.sqla import ModelView
 from flask_admin import Admin
-from flask_bootstrap import Bootstrap
+from flask_bootstrap3 import Bootstrap
 from flask_migrate import Migrate
 from flask_babelex import Babel
 import mimetypes
 import os
+
+from jinja2 import Template
+from sqlalchemy import engine
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, current_user, login_user, logout_user
 from flask_wtf import FlaskForm
@@ -33,6 +38,15 @@ class LoginForm(FlaskForm):
     username = StringField('Username')
     password = PasswordField('Password')
     submit = SubmitField('Submit')
+
+
+class RegistrationForm(FlaskForm):
+    username = StringField('Username')
+    password = PasswordField('Password')
+    confirm = PasswordField('Repeat password')
+
+    submit = SubmitField('Submit')
+
 # endregion
 
 
@@ -90,11 +104,11 @@ class Author(db.Model):
 
 # region Admin
 admin = Admin(app=app, name='name', template_mode='bootstrap4', base_template='base.html')
-# admin.add_view(ModelView(User, db.session))
-# admin.add_view(ModelView(Role, db.session))
-# admin.add_view(ModelView(Presentation, db.session))
-# admin.add_view(ModelView(Room, db.session))
-# admin.add_view(ModelView(Schedule, db.session))
+admin.add_view(ModelView(User, db.session))
+admin.add_view(ModelView(Role, db.session))
+admin.add_view(ModelView(Presentation, db.session))
+admin.add_view(ModelView(Room, db.session))
+admin.add_view(ModelView(Schedule, db.session))
 # endregion
 
 
@@ -130,13 +144,42 @@ def logout():
     return render_template('index.html')
 
 
-@app.route('/index')
+@app.route('/register', methods=['GET', 'POST'])
 def register():
-    return render_template('base.html')
+    form = RegistrationForm()
+    print(request.method)
+    print(form.username.data)
+    print(Template("{{ form.submit() }}").render(form=RegistrationForm()))
+    if request.method == "POST":
+        username = form.username.data
+        password = form.password.data
+        if User.query.filter_by(name=username).first() is None:
+            new_user = User()
+            new_user.name = username
+            new_user.set_password(password)
+            db.session.add(new_user)
+            db.session.commit()
+        else:
+            flash('Username is exist')
+            return render_template('register.html', form=form)
+        print(4)
+    return render_template('register.html', title='Register', form=form)
 
 
-# @app.route('/admin')
-# def admin_():
-#     return 'lkdks'
+@app.route('/main')
+def main():
+    from sqlalchemy.orm.session import Session
+    with Session() as session:
+        query = session.query(Schedule, Presentation, Room).all()
+        s  = ''
+        for sched, pres, room in query:
+            s+=sched.date_start+"\n"
+            s+=pres.name+"\n"
+            s+=room.id+"\n"
+        return s
+    # return render_template('schedule.html', items=session.query(Schedule).join(Presentation).all())
+
+
+# @app.route('/create')
 # endregion
 

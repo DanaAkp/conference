@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block container %}
+<table class="table">
+    <tr>
+        <th>Дата начала</th>
+        <th>Доклад</th>
+        <th>Аудитория</th>
+    </tr>
+    {% for item in items %}
+    <tr>
+        <th>{{item.date_start}}</th>
+        {% for i in item %}
+        <th>{{i.name}}</th>
+        <th>{{i.id}}</th>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
