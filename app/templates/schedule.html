@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'index.html' %}
 
 {% block container %}
 <table class="table">
@@ -7,13 +7,11 @@
         <th>Доклад</th>
         <th>Аудитория</th>
     </tr>
-    {% for item in items %}
+    {% for sched, pres, room in items %}
     <tr>
-        <th>{{item.date_start}}</th>
-        {% for i in item %}
-        <th>{{i.name}}</th>
-        <th>{{i.id}}</th>
-        {% endfor %}
+        <th>{{sched.date_start}}</th>
+        <th>{{pres.name}}</th>
+        <th>{{room.id}}</th>
     </tr>
     {% endfor %}
 </table>
