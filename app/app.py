@@ -12,7 +12,7 @@ import mimetypes
 import os
 
 from jinja2 import Template
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, current_user, login_user, logout_user, login_required
@@ -87,6 +87,7 @@ class User(UserMixin, db.Model):
 class Room(db.Model):
     __tablename__ = 'rooms'
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
     schedule = db.relationship('Schedule', backref='room')
 
     def __str__(self):
@@ -97,6 +98,7 @@ class Presentation(db.Model):
     __tablename__ = 'presentations'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text, nullable=False)
+    text = db.Column(db.Text)
     author = db.relationship('Author', backref='presentation')
     schedule = db.relationship('Schedule', backref='presentation')
 
@@ -110,8 +112,11 @@ class Schedule(db.Model):
     id_presentation = db.Column(db.Integer, db.ForeignKey('presentations.id'), primary_key=True)
     id_room = db.Column(db.Integer, db.ForeignKey('rooms.id'), primary_key=True)
 
-    # def __str__(self):
-    #     return self.name
+    def is_room_busy(self, date_start, id_room):
+        sched = Schedule.query.filter_by(id_room=id_room).filter_by(date_start=date_start).first()
+        if sched is None:
+            return False
+        return True
 
 
 class Author(db.Model):
@@ -122,14 +127,46 @@ class Author(db.Model):
 # endregion
 
 
+@login.user_loader
+def load_user(id):
+    return User.query.get(int(id))
+
+
 # region Admin
-admin = Admin(app=app, name='name', template_mode='bootstrap3')
+admin = Admin(app=app, name='Admin', template_mode='bootstrap3')
+
+
+class PresenterModelView(ModelView):
+    def is_accessible(self):
+        return current_user.role_id == 1 and current_user.is_authenticated
+
+
+class PresentationModelView(PresenterModelView):
+    def get_query(self):
+        query = self.session.query(User)
+        query = query.join(Author, Author.id_user == current_user.id)
+        return query.join(self.model, Author.id_presentation == self.model.id)
+
+
+class ScheduleModelView(PresenterModelView):
+    def get_query(self):
+        query = self.session.query(User)
+        query = query.join(Author, Author.id_user == current_user.id)
+        query = query.join(Presentation, Author.id_presentation == Presentation.id)
+        return query.join(self.model, self.model.id_presentation == Presentation.id)
+
+
+class AdminModelView(ModelView):
+    def is_accessible(self):
+        return current_user.role_id == 2 and current_user.is_authenticated
+
+
+admin.add_view(ModelView(Presentation, db.session))
 admin.add_view(ModelView(User, db.session))
 admin.add_view(ModelView(Role, db.session))
-admin.add_view(ModelView(Presentation, db.session))
+admin.add_view(ModelView(Author, db.session))
 admin.add_view(ModelView(Room, db.session))
 admin.add_view(ModelView(Schedule, db.session))
-admin.add_view(ModelView(Author, db.session))
 # endregion
 
 
@@ -137,11 +174,6 @@ admin.add_view(ModelView(Author, db.session))
 @app.route('/')
 def home():
     return render_template('index.html', title='Home')
-
-
-@login.user_loader
-def load_user(id):
-    return User.query.get(int(id))
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -193,27 +225,61 @@ def main():
     return render_template('schedule.html', items=query, title='Schedule')
 
 
-@app.route('/presenter/<username>')
-@login_required
-def presenter(username):
+def for_presenter():
     engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
     Session = sessionmaker(bind=engine)
     session = Session()
     query = session.query(User, Presentation)
     query = query.join(Author, Author.id_user == User.id)
-    query = query.join(Presentation, Author.id_presentation == Presentation.id)
+    return query.join(Presentation, Author.id_presentation == Presentation.id)
+
+
+@app.route('/presenter/<username>')
+@login_required
+def presenter(username):
+    query = for_presenter()
     return render_template('presenter.html', title='Presenter - '+username, items=query)
 
 
-@app.route('/presenter/<username>/create')
-@login_required
-def presenter_create(username):
-    pass
+# @app.route('/presenter/<username>/create', methods=['GET', 'POST'])
+# @login_required
+# def presenter_create(username):
+#     if request.method == 'GET':
+#         return render_template("create.html", title='Presenter - ' + username)
+#     if Presentation.query.filter_by(name=request.form.get('name')).first() is None:
+#         presentation = Presentation()
+#         presentation.name = request.form.get('name')
+#         db.session.add(presentation)
+#         db.session.commit()
+#     else:
+#         flash('Presentation is exist')
+#         return render_template("create.html", title='Presenter - ' + username)
+#     query = for_presenter()
+#     return render_template('presenter.html', title='Presenter - '+username, item=query)
+#
+#
+# @app.route('/presenter/<username>/edit/<id_>', methods=['GET', 'POST'])
+# @login_required
+# def presenter_edit(username, id_):
+#     presentation = Presentation.query.filter_by(id=id_).first()
+#     if request.method == "GET":
+#         return render_template("edit.html", title='Presenter - '+username, item=presentation)
+#     presentation.name = request.form.get('name')
+#     db.session.commit()
+#
+#     query = for_presenter()
+#     return render_template('presenter.html', title='Presenter - '+username, item=query)
 
 
-@app.route('/presenter/<username>/edit')
-@login_required
-def presenter_edit(username):
-    pass
+# @app.route('/presenter/<username>/delete/<id_>', methods=['GET', 'POST'])
+# # @login_required
+# def presenter_edit(username, id_):
+#     presentation = Presentation.query.filter_by(id=id_).first()
+#     db.session.delete(presentation)
+#     db.session.commit()
+#
+#     query = for_presenter()
+#     return render_template('presenter.html', title='Presenter - '+username, item=query)
+
 # endregion
 
