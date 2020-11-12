@@ -90,7 +90,7 @@ class Room(db.Model):
     schedule = db.relationship('Schedule', backref='room')
 
     def __str__(self):
-        return self.name
+        return 'Room #' + str(self.id)
 
 
 class Presentation(db.Model):
@@ -122,10 +122,6 @@ class Author(db.Model):
 # endregion
 
 
-# user_datastore = SQLAlchemyUserDatastore(db, User, Role)
-# security = Security(app, user_datastore)
-
-
 # region Admin
 admin = Admin(app=app, name='name', template_mode='bootstrap3')
 admin.add_view(ModelView(User, db.session))
@@ -133,13 +129,14 @@ admin.add_view(ModelView(Role, db.session))
 admin.add_view(ModelView(Presentation, db.session))
 admin.add_view(ModelView(Room, db.session))
 admin.add_view(ModelView(Schedule, db.session))
+admin.add_view(ModelView(Author, db.session))
 # endregion
 
 
 # region View
 @app.route('/')
 def home():
-    return 'hello, world!'
+    return render_template('index.html', title='Home')
 
 
 @login.user_loader
@@ -165,7 +162,7 @@ def login():
 @app.route('/logout')
 def logout():
     logout_user()
-    return render_template('index.html')
+    return redirect(url_for('home'))
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -199,12 +196,24 @@ def main():
 @app.route('/presenter/<username>')
 @login_required
 def presenter(username):
-    user = User.query.filter_by(name=username).first()
     engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
     Session = sessionmaker(bind=engine)
     session = Session()
-    query = session.query()
+    query = session.query(User, Presentation)
+    query = query.join(Author, Author.id_user == User.id)
+    query = query.join(Presentation, Author.id_presentation == Presentation.id)
     return render_template('presenter.html', title='Presenter - '+username, items=query)
 
+
+@app.route('/presenter/<username>/create')
+@login_required
+def presenter_create(username):
+    pass
+
+
+@app.route('/presenter/<username>/edit')
+@login_required
+def presenter_edit(username):
+    pass
 # endregion
 

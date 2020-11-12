@@ -1,5 +1,16 @@
 {% extends 'index.html' %}
 
 {% block container %}
-
+<div>
+<ul>
+{% for user, pres in items %}
+<li>
+    {{user.name}}
+</li>
+    <li>
+        {{pres.name}}
+    </li>
+{% endfor %}
+</ul>
+</div>
 {% endblock %}
