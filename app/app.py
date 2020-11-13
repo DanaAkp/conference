@@ -118,13 +118,8 @@ class Schedule(db.Model):
 
     def is_room_busy(self, date_start, id_room):
         result = re.findall('value="([\w\W]+)["^]', str(date_start))
-        d = Schedule.query.filter_by(id_room=int(id_room)).first().date_start
-        print(d, type(d))
-
         sched = Schedule.query.filter_by(id_room=int(id_room), date_start=datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')).first()
-        print(2)
         if sched is None:
-            print(123)
             return False
         return True
 
@@ -168,10 +163,7 @@ class ScheduleModelView(PresenterModelView):
 
     def on_model_change(self, form, model, is_created):
         result = re.findall('Room #([\d])[<^]', str(form['room']))
-        print(result[0])
         if model.is_room_busy(form['date_start'], result[0]):
-            print(8)
-
             raise Exception('Room is busy!')
 
 
