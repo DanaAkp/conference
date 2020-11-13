@@ -1,3 +1,5 @@
+import re
+
 from flask import request
 
 from flask import Flask, render_template, url_for, redirect, flash
@@ -9,6 +11,7 @@ from flask_bootstrap3 import Bootstrap
 from flask_migrate import Migrate
 from flask_babelex import Babel
 import mimetypes
+from datetime import datetime
 import os
 
 from jinja2 import Template
@@ -108,13 +111,20 @@ class Presentation(db.Model):
 
 class Schedule(db.Model):
     __tablename__ = 'schedule'
+    id = db.Column(db.Integer, nullable=False, primary_key=True)
     date_start = db.Column(db.DateTime, nullable=False)
-    id_presentation = db.Column(db.Integer, db.ForeignKey('presentations.id'), primary_key=True)
-    id_room = db.Column(db.Integer, db.ForeignKey('rooms.id'), primary_key=True)
+    id_presentation = db.Column(db.Integer, db.ForeignKey('presentations.id'), nullable=False)
+    id_room = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
 
     def is_room_busy(self, date_start, id_room):
-        sched = Schedule.query.filter_by(id_room=id_room).filter_by(date_start=date_start).first()
+        result = re.findall('value="([\w\W]+)["^]', str(date_start))
+        d = Schedule.query.filter_by(id_room=int(id_room)).first().date_start
+        print(d, type(d))
+
+        sched = Schedule.query.filter_by(id_room=int(id_room), date_start=datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')).first()
+        print(2)
         if sched is None:
+            print(123)
             return False
         return True
 
@@ -143,17 +153,26 @@ class PresenterModelView(ModelView):
 
 class PresentationModelView(PresenterModelView):
     def get_query(self):
-        query = self.session.query(User)
-        query = query.join(Author, Author.id_user == current_user.id)
-        return query.join(self.model, Author.id_presentation == self.model.id)
+        query = self.session.query(self.model)
+        query = query.join(Author, Author.id_presentation == self.model.id)
+        return query.join(User, Author.id_user == current_user.id)
 
 
 class ScheduleModelView(PresenterModelView):
     def get_query(self):
-        query = self.session.query(User)
-        query = query.join(Author, Author.id_user == current_user.id)
-        query = query.join(Presentation, Author.id_presentation == Presentation.id)
-        return query.join(self.model, self.model.id_presentation == Presentation.id)
+        query = self.session.query(self.model)
+        query = query.join(Presentation, self.model.id_presentation == Presentation.id)
+        query = query.join(Author, Author.id_presentation == self.model.id_presentation)
+        query = query.join(User, Author.id_user == current_user.id)
+        return query
+
+    def on_model_change(self, form, model, is_created):
+        result = re.findall('Room #([\d])[<^]', str(form['room']))
+        print(result[0])
+        if model.is_room_busy(form['date_start'], result[0]):
+            print(8)
+
+            raise Exception('Room is busy!')
 
 
 class AdminModelView(ModelView):
@@ -161,12 +180,12 @@ class AdminModelView(ModelView):
         return current_user.role_id == 2 and current_user.is_authenticated
 
 
-admin.add_view(ModelView(Presentation, db.session))
-admin.add_view(ModelView(User, db.session))
-admin.add_view(ModelView(Role, db.session))
-admin.add_view(ModelView(Author, db.session))
-admin.add_view(ModelView(Room, db.session))
-admin.add_view(ModelView(Schedule, db.session))
+admin.add_view(PresentationModelView(Presentation, db.session))
+admin.add_view(AdminModelView(User, db.session))
+admin.add_view(AdminModelView(Role, db.session))
+admin.add_view(AdminModelView(Author, db.session))
+admin.add_view(AdminModelView(Room, db.session))
+admin.add_view(ScheduleModelView(Schedule, db.session))
 # endregion
 
 
